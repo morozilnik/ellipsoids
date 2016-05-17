@@ -7,15 +7,11 @@
 
 #include <Eigen/Eigen>
 
-namespace Dimploma
+namespace Diploma
 {
 	typedef Eigen::VectorXd Point;
 	typedef Eigen::MatrixXd PointsVec;
 	typedef PointsVec HyperCube;
 
-	double dist(Point A, Point B)
-	{
-		return (A - B).norm();
-	}
 
-} //namespace Dimploma
+} //namespace Diploma

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <numeric>
+#include <iostream>
 #include <Eigen/Sparse>
 
 #include "Petunin.hpp"
@@ -7,8 +8,13 @@
 using namespace Eigen;
 using namespace std;
 
-namespace Dimploma
+namespace Diploma
 {
+   double dist(Point A, Point B)
+   {
+      return (A - B).norm();
+   }
+
    PetuninEllipse::PetuninEllipse(const PointsVec& input)
    {
    }
@@ -17,7 +23,8 @@ namespace Dimploma
    {
       // 1. Find Diameter
       double diam = findDiameter(input, D1, D2);
-
+      cout << "Calculated diameter = " << diam
+         << "\nWith D1 = " << D1 << "\nD2 = " << D2 << std::endl;    
 
    }
 
@@ -35,21 +42,20 @@ namespace Dimploma
 
    double PetuninEllipse::findDiameter(const PointsVec& input, Point& A, Point& B)
    {
+      std::cout << "Inside PetuninEllipse:findDiameter\n";
       double maxDistance = 0;
       for (auto i = 0; i < input.cols(); i++)
       {
          for (auto j = i + 1; j < input.cols(); j++)
          {
-            if (i != j)
+            double distance = dist(input.col(i), input.col(j));
+            if (distance > maxDistance)
             {
-               double distance = dist(input.col(i), input.col(j));
-               if (distance > maxDistance)
-               {
-                  maxDistance = distance;
-                  A = input.col(i);
-                  B = input.col(j);
-               }
+               maxDistance = distance;
+               A = input.col(i);
+               B = input.col(j);
             }
+
          }
       }
       return maxDistance;
@@ -87,20 +93,6 @@ namespace Dimploma
       double radius;
    };
 
-   struct NodePair
-   {
-      NodePair(int a, int b)
-      : i1(a), i2(b)
-      {}
-      int i1;
-      int i2;
-      double M;
-      const bool operator< (const NodePair& r) const
-      {
-         return M < r.M;
-      }
-   };
-
    struct FairSplitTreeNode{
    public: // methods
       bool empty()
@@ -121,6 +113,22 @@ namespace Dimploma
       BoundingBox boundingBox;
    };
 
+   struct NodePair
+   {
+      NodePair(FairSplitTreeNode* a, FairSplitTreeNode* b)
+      : i1(a), i2(b)
+      {}
+      FairSplitTreeNode* i1;
+      FairSplitTreeNode* i2;
+      double M;
+      const bool operator< (const NodePair& r) const
+      {
+         return M < r.M;
+      }
+   };
+
+namespace { //Anonimous
+
    BoundingBox findBoundingBox(const PointsVec& input, std::vector<int>& indices)
    {
       BoundingBox R;
@@ -138,49 +146,16 @@ namespace Dimploma
       {
          for (int j = 0; j < input.rows(); j++)
          {
-            R.pointMin(j) = std::min(R.pointMin(j), input(i, j));
-            R.pointMax(j) = std::max(R.pointMax(j), input(i, j));
+            R.pointMin(j) = std::min(R.pointMin(j), input(j, i));
+            R.pointMax(j) = std::max(R.pointMax(j), input(j, i));
          }
       }
 
-      auto diff = R.pointMax - R.pointMin;
-
-      R.maxSide = diff.minCoeff(&R.maxDimension);
-      R.center = R.pointMin + diff / 2;
-      R.radius = (diff / 2).norm();
+      Point diff = R.pointMax - R.pointMin;
+      R.maxSide = diff.maxCoeff(&R.maxDimension);
+      R.center = R.pointMin + (diff / 2);
+      R.radius = diff.norm() / 2;
       return R;
-   }
-
-   void splitTreeNode(
-      const PointsVec& input,
-      FairSplitTreeNode* parent)
-   {
-      FairSplitTreeNode* left = parent->left;
-      FairSplitTreeNode* right = parent->right;
-      left->parent = parent;
-      right->parent = parent;
-      const BoundingBox& bigBox = parent->boundingBox;
-      
-      // Dividing in halves according to biggest dimension of bounding box
-      left->indices.reserve(parent->indices.size() / 2);
-      right->indices.reserve(parent->indices.size() / 2);
-      int j = bigBox.maxDimension;
-      double threshold = bigBox.center(j);
-
-      for (auto i : parent->indices)
-      {
-         if (input(i, j) > threshold)
-         {
-            right->indices.push_back(i);
-         }
-         else
-         {
-            left->indices.push_back(i);
-         }
-      }
-      left->boundingBox = findBoundingBox(input, left->indices);
-      right->boundingBox = findBoundingBox(input, right->indices);
-      
    }
 
    double M_Measure(FairSplitTreeNode* u, FairSplitTreeNode* v)
@@ -189,75 +164,171 @@ namespace Dimploma
          u->boundingBox.radius + v->boundingBox.radius;
    }
 
-   double findDiameterHarPelet(const PointsVec& input, Point&A, Point&B)
+}
+
+   void HarPelet::splitTreeNode(
+      const PointsVec& input,
+      FairSplitTreeNode* parent)
+   {
+      FairSplitTreeNode* left = new FairSplitTreeNode();
+      FairSplitTreeNode* right = new FairSplitTreeNode();
+      parent->left = left;
+      parent->right = right;
+      left->parent = parent;
+      right->parent = parent;
+      left->left = 0;
+      left->right = 0;
+      right->left = 0;
+      right->right = 0;
+      const BoundingBox& bigBox = parent->boundingBox;
+
+      // Dividing in halves according to biggest dimension of bounding box
+      left->indices.reserve(parent->indices.size() / 2);
+      right->indices.reserve(parent->indices.size() / 2);
+      int j = bigBox.maxDimension;
+      double threshold = bigBox.pointMin(j) + bigBox.maxSide / 2;
+
+      for (auto i : parent->indices)
+      {
+         if (input(j, i) > threshold)
+         {
+            right->indices.push_back(i);
+         }
+         else
+         {
+            left->indices.push_back(i);
+         }
+      }
+      if (left->empty() || right->empty())
+      {
+         std::cout << "Something is wrong here" << std::endl;
+      }
+      left->boundingBox = findBoundingBox(input, left->indices);
+      right->boundingBox = findBoundingBox(input, right->indices);
+
+   }
+
+   HarPelet::HarPelet(const PointsVec& input)
+      : epsilon(0.005)
+      , PetuninEllipse(input)
+      , inputData(input)
    {
       // We initialize algorithm with single node having all tree
       // PCurr = (root(T), root(T)
+      root = new FairSplitTreeNode();
+      root->parent = 0;
+      root->left = 0;
+      root->right = 0;
+      root->boundingBox = findBoundingBox(input, root->indices);
+      root->indices.resize(input.cols());
+      std::iota(root->indices.begin(), root->indices.end(), 0);
+      currDiam = root->boundingBox.maxSide;
 
-      FairSplitTreeNode root;
-      root.parent = 0;
-      root.boundingBox = findBoundingBox(input, root.indices);
-      root.indices.resize(input.cols());
-      std::iota(root.indices.begin(), root.indices.end(), 0);
-      std::vector<FairSplitTreeNode *> FairSplitTree(1);
-      FairSplitTree[0] = &root;
-
-      
-      // Starting approximation as max side of bounding box (sqrt(d) approximation)
-      VectorXd pDiam, qDiam;
-      double currDiam = root.boundingBox.maxSide;
-      // Heap with nodes pairs
-      std::vector<NodePair> Pcurr;
-      NodePair rootPair(0, 0);
+      NodePair rootPair(root, root);
       //Upper bound for diameter
-      rootPair.M = root.boundingBox.radius * 2;
+      rootPair.M = root->boundingBox.radius * 2;
       Pcurr.push_back(rootPair);
-      
-      // The correct value of diameter is searched within epsilon
-      double epsilon = 0.1;
+   }
+
+   HarPelet::~HarPelet()
+   {
+      //Deleting all tree nodes
+      delete root;
+      for (auto pt : FairSplitTree)
+      {
+         delete pt;
+      }
+   }
+
+   void HarPelet::pushNewPair(NodePair& uv)
+   {
+      if (uv.M > (1 + epsilon) * currDiam)
+      {
+         Pcurr.push_back(uv);
+         std::push_heap(begin(Pcurr), end(Pcurr));
+         int index1 = rand() % uv.i1->size();
+         int index2 = rand() % uv.i2->size();
+         double newDistance =
+            dist(inputData.col(uv.i1->indices[index1]),
+                 inputData.col(uv.i2->indices[index2]));
+         if (newDistance > currDiam)
+         {
+            currDiam = newDistance;
+            pDiam = inputData.col(uv.i1->indices[index1]);
+            qDiam = inputData.col(uv.i2->indices[index2]);
+         }
+      }
+   }
+
+   double HarPelet::findDiameter(const PointsVec& input, Point&A, Point&B)
+   {
+      std::cout << "Inside HarPelet:findDiameter\n";
       double prevDiam;
 
+      int iteration = 0;
       //Start iterative process
       do
       {
          prevDiam = currDiam;
-         NodePair& currentPair = Pcurr.front();
+         NodePair currentPair = Pcurr.front();
 
-         // We can throw away a pair if P(v) or P(u) is empty or 
+         pop_heap(begin(Pcurr), end(Pcurr));
+         Pcurr.pop_back();
+         // We can throw away a pair if P(v) or P(u) is empty or
          // M(u,v) <= (1 + eps) * currDiam
-         if (FairSplitTree[currentPair.i1]->empty() || 
-             FairSplitTree[currentPair.i2]->empty() ||
+         if (currentPair.i1->size() < 2 &&
+             currentPair.i2->size() < 2 ||
              currentPair.M < (1 + epsilon) * currDiam)
          {
-            pop_heap(begin(Pcurr), end(Pcurr));
-            Pcurr.pop_back();
             continue;
          }
          else //When decided not to trow away we split parts
          {
             FairSplitTreeNode* nodeToSplit =
-               FairSplitTree[currentPair.i1]->size() >= FairSplitTree[currentPair.i2]->size() ?
-               FairSplitTree[currentPair.i1] : FairSplitTree[currentPair.i2];
+               currentPair.i1->boundingBox.maxSide >= currentPair.i2->boundingBox.maxSide ?
+               currentPair.i1 : currentPair.i2;
             if (nodeToSplit->size() > 1)
             {
                if (!nodeToSplit->left || !nodeToSplit->right)
                {
-                  nodeToSplit->left = new FairSplitTreeNode();
-                  nodeToSplit->right = new FairSplitTreeNode();
+                  splitTreeNode(input, nodeToSplit);
+                  FairSplitTree.push_back(nodeToSplit->left);
+                  FairSplitTree.push_back(nodeToSplit->right);
                }
-               splitTreeNode(input, nodeToSplit);
-            }
-            
-         }
-         
 
-         
-      } while (currDiam - prevDiam > epsilon && !Pcurr.empty());
+               // Create new pairs. Different cases if i1 == i2 and else.
+               if (currentPair.i1 == currentPair.i2)
+               {
+                  NodePair ll(nodeToSplit->left, nodeToSplit->left);
+                  ll.M = M_Measure(ll.i1, ll.i2);
+                  pushNewPair(ll);
+                  NodePair rr(nodeToSplit->right, nodeToSplit->right);
+                  rr.M = M_Measure(rr.i1, rr.i2);
+                  pushNewPair(rr);
+                  NodePair lr(nodeToSplit->left, nodeToSplit->right);
+                  lr.M = M_Measure(lr.i1, lr.i2);
+                  pushNewPair(lr);
+               }
+               else
+               {
+                  FairSplitTreeNode* otherNode =
+                     nodeToSplit == currentPair.i1 ?
+                     currentPair.i2 : currentPair.i1;
+                  NodePair ll(nodeToSplit->left, otherNode);
+                  ll.M = M_Measure(ll.i1, ll.i2);
+                  pushNewPair(ll);
+                  NodePair rr(nodeToSplit->right, otherNode);
+                  rr.M = M_Measure(rr.i1, rr.i2);
+                  pushNewPair(rr);
+               } //endif (i1 == i2)
+
+            } // endif (nodeToSplit.size > 1)
+         } // endif (process pair)
+      } while (/*currDiam - prevDiam > epsilon &&*/ !Pcurr.empty());
             
-      
+      A = pDiam;
+      B = qDiam;
       return currDiam;
    }
 
-
-
-} //namespace Dimploma
+} //namespace Diploma
