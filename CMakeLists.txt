@@ -2,9 +2,14 @@ cmake_minimum_required(VERSION 3.0)
 project (Diploma)
 
 SET (PETUNIN_ELLIPSE_SRC
-	types.hpp
+	helpers.hpp
+	helpers.cpp
 	Petunin.hpp
-	Petunin.cpp)
+	Petunin.cpp
+	HarPelet.hpp
+	HarPelet.cpp
+	Malandain.hpp
+	Malandain.cpp)
 
 add_library("PetuninEllipses"
 	${PETUNIN_ELLIPSE_SRC})
