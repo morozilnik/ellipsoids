@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <Eigen/Sparse>
 
@@ -18,7 +19,11 @@ namespace Diploma
    void PetuninEllipse::calculateEllises(const PointsVec& input)
    {
       // 1. Find Diameter
+      std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
       double diam = findDiameter(input, D1, D2);
+      std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+      std::cout << "Diameter time = " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << std::endl;
+      
       cout << "Calculated diameter = " << diam
          << "\nWith D1 = " << D1 << "\nD2 = " << D2 << std::endl;
       HyperCube out;
@@ -96,13 +101,21 @@ namespace Diploma
       auto boundingBox = findBoundingBox(points, std::vector<int>());
       // 5. Shrink to square
       points.colwise() -= boundingBox.pointMin;
+      Point Zero = VectorXd(dimensions);
       for (int i = 0; i < dimensions; i++)
       {
          double div = (boundingBox.pointMax(i) - boundingBox.pointMin(i));
          points.row(i) /= div;
+         Zero(i) = 0.;
       }
+      std::vector<double> distances(input.cols());
       
-      
+      for (int i = 0; i < distances.size(); i++)
+      {
+         distances[i] = dist(Zero, input.col(i));
+      }
+      std::sort(distances.begin(), distances.end());
+
    }
 
 
