@@ -3,7 +3,7 @@
 
 namespace Diploma
 {
-   double dist(Point A, Point B)
+   double dist(const Point& A, const Point& B)
    {
       return (A - B).norm();
    }

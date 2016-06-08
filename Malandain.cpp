@@ -1,3 +1,4 @@
+#include <iostream>
 #include "Malandain.hpp"
 
 namespace Diploma
@@ -7,13 +8,14 @@ namespace Diploma
       : PetuninEllipse(input)
       , activeIndices(input.cols(), true)
    {
-
+      extraPoints.reserve(input.cols() / 100);
    }
 
    double Malandain::findDiameter(const PointsVec& input, Point& A, Point& B)
    {
       double diam = 0;
       bool stop = false;
+      bool empty = false;
       pii pq(-1, -1);
       pii res;
       do
@@ -27,6 +29,7 @@ namespace Diploma
             if (pq.first < 0)
             {
                stop = true;
+               empty = true;
             }
          }
          else
@@ -35,6 +38,13 @@ namespace Diploma
          }
       } while (!stop);
 
+      if (!empty)
+      {
+         diam = findDiamExtraPoints(input, res);
+      }
+      
+      A = input.col(res.first);
+      B = input.col(res.second);
 
       return diam;
    }
@@ -110,6 +120,42 @@ namespace Diploma
          }
       }
       return res;
+   }
+
+   double Malandain::findDiamExtraPoints(const PointsVec& input, pii& pq)
+   {
+      Point P = input.col(pq.first);
+      Point Q = input.col(pq.second);
+      Point C = (P + Q) / 2;
+      double d = dist(P, C);
+      double diam = dist(P, Q);
+      for (int i = 0; i < input.cols(); i++)
+      {
+         if (activeIndices[i] && dist(C, input.col(i)) < d)
+         {
+            activeIndices[i] = false;
+         }
+         if (activeIndices[i])
+         {
+            extraPoints.push_back(i);
+         }
+      }
+
+      std::cout << "Malandain extra points count is " << extraPoints.size() << std::endl;
+
+      for (size_t i = 0; i < extraPoints.size(); i++)
+      {
+         Point T = input.col(i);
+         for (int j = 0; j < input.cols(); j++)
+         {
+            if (i != j && dist(T, input.col(j)) > diam)
+            {
+               diam = dist(T, input.col(j));
+               pq = std::make_pair(i, j);
+            }
+         }
+      }
+      return diam;      
    }
 
 } // namespace Diploma

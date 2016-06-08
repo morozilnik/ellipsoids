@@ -17,7 +17,9 @@ namespace Diploma
       // Starts with first active index
       double findDoubleNormal(const PointsVec& input, pii& DN);
       double findMostDistantPoint(const PointsVec& input, int from, int& res);
+      double findDiamExtraPoints(const PointsVec& input, pii& DN);
       int getOuterPoint(const PointsVec& input, pii pq);
       std::vector <bool> activeIndices;
+      std::vector <int> extraPoints;
    };
 } //namespace Diploma
